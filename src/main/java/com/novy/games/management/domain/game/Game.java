@@ -47,11 +47,32 @@ public class Game extends IdentifiedObject<GameId> {
     }
 
     private boolean registrationNotPossibleAnymore() {
-        return EnumSet.of(MAX_PARTICIPANTS_GATHERED, TOOK_PLACE, CANCELLED)
+        return state == MAX_PARTICIPANTS_GATHERED || gameAlreadyTookPlaceOrHasBeenCancelled();
+    }
+
+    private boolean gameAlreadyTookPlaceOrHasBeenCancelled() {
+        return EnumSet.of(TOOK_PLACE, CANCELLED)
                 .contains(state);
     }
 
     public void unregisterParticipant(ParticipantId participantId) {
+        if (!participantRegistered(participantId)) {
+            throw new IllegalArgumentException("Participant not registered!");
+        }
+
+        if (gameAlreadyTookPlaceOrHasBeenCancelled()) {
+            throw new IllegalStateException("Cannot unregister, wrong game state!");
+        }
+
+        participants.remove(participantId);
+
+        if (state == MAX_PARTICIPANTS_GATHERED && !thresholdStrategy.maxThresholdExceeded(participantCount())) {
+            state = MIN_PARTICIPANTS_GATHERED;
+        }
+
+        if (state == MIN_PARTICIPANTS_GATHERED && !thresholdStrategy.minThresholdExceeded(participantCount())) {
+            state = PENDING;
+        }
 
     }
 
