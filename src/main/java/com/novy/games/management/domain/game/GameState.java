@@ -34,9 +34,7 @@ public enum GameState {
                         PENDING, MIN_PARTICIPANTS_GATHERED, TOOK_PLACE, CANCELLED
                 ),
 
-                TOOK_PLACE, EnumSet.of(
-                        CANCELLED
-                ),
+                TOOK_PLACE, Collections.emptySet(),
 
                 CANCELLED, Collections.emptySet()
         );
