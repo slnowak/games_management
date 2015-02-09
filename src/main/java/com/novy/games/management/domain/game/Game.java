@@ -4,7 +4,10 @@ import com.google.common.collect.Lists;
 import com.novy.games.management.domain.common.IdentifiedObject;
 import com.novy.games.management.domain.game.valueobjects.GameId;
 import com.novy.games.management.domain.participant.valueobjects.ParticipantId;
+import org.threeten.extra.Interval;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -18,12 +21,21 @@ public class Game extends IdentifiedObject<GameId> {
 
     private GameState state = PENDING;
     private Collection<ParticipantId> participants = Lists.newArrayList();
-    private ThresholdStrategy thresholdStrategy;
+    private ThresholdPolicy thresholdPolicy;
+    private Interval duration;
 
 
-    public Game(GameId gameId, ThresholdStrategy thresholdStrategy) {
+    public Game(GameId gameId, ThresholdPolicy thresholdPolicy, LocalDateTime startDate, int durationInMinutes) {
         super(gameId);
-        this.thresholdStrategy = thresholdStrategy;
+        this.thresholdPolicy = thresholdPolicy;
+        this.duration = intervalOfLocalDateTimes(startDate, startDate.plusMinutes(durationInMinutes));
+    }
+
+    private Interval intervalOfLocalDateTimes(LocalDateTime start, LocalDateTime end) {
+        return Interval.of(
+                start.toInstant(ZoneOffset.UTC),
+                end.toInstant(ZoneOffset.UTC)
+        );
     }
 
     public void registerParticipant(ParticipantId participantId) {
@@ -37,11 +49,11 @@ public class Game extends IdentifiedObject<GameId> {
 
         participants.add(participantId);
 
-        if (thresholdStrategy.minThresholdExceeded(participantCount())) {
+        if (thresholdPolicy.minThresholdExceeded(participantCount())) {
             state = MIN_PARTICIPANTS_GATHERED;
         }
 
-        if (thresholdStrategy.maxThresholdExceeded(participantCount())) {
+        if (thresholdPolicy.maxThresholdExceeded(participantCount())) {
             state = MAX_PARTICIPANTS_GATHERED;
         }
     }
@@ -66,11 +78,11 @@ public class Game extends IdentifiedObject<GameId> {
 
         participants.remove(participantId);
 
-        if (state == MAX_PARTICIPANTS_GATHERED && !thresholdStrategy.maxThresholdExceeded(participantCount())) {
+        if (state == MAX_PARTICIPANTS_GATHERED && !thresholdPolicy.maxThresholdExceeded(participantCount())) {
             state = MIN_PARTICIPANTS_GATHERED;
         }
 
-        if (state == MIN_PARTICIPANTS_GATHERED && !thresholdStrategy.minThresholdExceeded(participantCount())) {
+        if (state == MIN_PARTICIPANTS_GATHERED && !thresholdPolicy.minThresholdExceeded(participantCount())) {
             state = PENDING;
         }
 
@@ -100,11 +112,25 @@ public class Game extends IdentifiedObject<GameId> {
         state = TOOK_PLACE;
     }
 
+    public boolean overlaps(Game otherGame) {
+        return duration.overlaps(
+                intervalOfLocalDateTimes(otherGame.startTime(), otherGame.endTime())
+        );
+    }
+
     public Collection<ParticipantId> participants() {
         return Collections.unmodifiableCollection(participants);
     }
 
     private int participantCount() {
         return participants.size();
+    }
+
+    public LocalDateTime startTime() {
+        return LocalDateTime.ofInstant(duration.getStart(), ZoneOffset.UTC);
+    }
+
+    public LocalDateTime endTime() {
+        return LocalDateTime.ofInstant(duration.getEnd(), ZoneOffset.UTC);
     }
 }
